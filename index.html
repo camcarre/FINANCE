@@ -354,6 +354,30 @@
         color: var(--muted);
       }
 
+      .btn-ghost {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        background: rgba(15, 23, 42, 0.9);
+        color: var(--text-color);
+        font-size: 0.7rem;
+        cursor: pointer;
+        transition: background 120ms ease, border-color 120ms ease,
+          transform 80ms ease;
+      }
+
+      .btn-ghost:hover {
+        background: rgba(30, 64, 175, 0.9);
+        border-color: rgba(96, 165, 250, 0.9);
+      }
+
+      .btn-ghost:active {
+        transform: translateY(1px);
+      }
+
       #json-output {
         margin: 0;
         padding: 8px 10px;
@@ -485,7 +509,17 @@
       <section class="section-json" aria-label="JSON pour Raccourci iOS">
         <div class="section-json-header">
           <div class="section-json-title">JSON · iOS Shortcut</div>
-          <div class="json-badge">GET &rarr; Dictionary</div>
+          <div style="display: flex; align-items: center; gap: 6px">
+            <div class="json-badge">GET &rarr; Dictionary</div>
+            <button
+              type="button"
+              class="btn-ghost"
+              id="copy-json-btn"
+              aria-label="Copier le JSON du portefeuille"
+            >
+              Copier le JSON
+            </button>
+          </div>
         </div>
         <pre
           id="json-output"
@@ -668,7 +702,12 @@
 
         const entries = Object.entries(byType)
           .sort((a, b) => b[1].value - a[1].value)
-          .map(([type, data]) => `${type}: ${formatPercent(data.pct)}`);
+          .map(
+            ([type, data]) =>
+              `${type}: ${formatCurrency(data.value, currency)} (${formatPercent(
+                data.pct
+              )})`
+          );
         breakdownEl.textContent = entries.join(" · ") || "—";
       }
 
@@ -738,6 +777,28 @@
       function renderJson(resultJson) {
         const pre = document.getElementById("json-output");
         pre.textContent = JSON.stringify(resultJson, null, 2);
+      }
+
+      function setupCopyJsonButton() {
+        const btn = document.getElementById("copy-json-btn");
+        if (!btn || !navigator.clipboard) return;
+        btn.addEventListener("click", async () => {
+          const pre = document.getElementById("json-output");
+          const original = btn.textContent;
+          try {
+            await navigator.clipboard.writeText(pre.textContent || "");
+            btn.textContent = "Copié ✓";
+            setTimeout(() => {
+              btn.textContent = original;
+            }, 1600);
+          } catch (e) {
+            btn.textContent = "Erreur copie";
+            setStatus("Copie impossible", true);
+            setTimeout(() => {
+              btn.textContent = original;
+            }, 1600);
+          }
+        });
       }
 
       function setStatus(text, isError) {
@@ -833,6 +894,7 @@
       }
 
       window.addEventListener("load", () => {
+        setupCopyJsonButton();
         loadPortfolio().catch((err) => {
           console.error(err);
           setStatus("Erreur de chargement", true);
