@@ -1,0 +1,843 @@
+<!-- index.html - Static Portfolio Tracker for GitHub Pages
+     Summary: Client-side page that fetches live prices, computes portfolio metrics, and exposes JSON for iOS Shortcuts. -->
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portfolio Tracker</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg-color: #0f172a;
+        --bg-alt: #020617;
+        --card-bg: #020617;
+        --border-color: #1e293b;
+        --text-color: #e5e7eb;
+        --accent: #38bdf8;
+        --accent-soft: #0f172a;
+        --danger: #f97373;
+        --success: #4ade80;
+        --muted: #9ca3af;
+        --font-main: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: var(--font-main);
+        background: radial-gradient(circle at top left, #1e293b 0, #020617 55%),
+          radial-gradient(circle at bottom right, #0f172a 0, #020617 60%);
+        color: var(--text-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+
+      .app-shell {
+        width: 100%;
+        max-width: 900px;
+        background: linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(15, 23, 42, 0.9));
+        border-radius: 24px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        box-shadow:
+          0 32px 80px rgba(15, 23, 42, 0.7),
+          0 0 0 1px rgba(15, 23, 42, 0.6);
+        padding: 20px 20px 16px;
+        backdrop-filter: blur(22px) saturate(140%);
+      }
+
+      @media (min-width: 640px) {
+        .app-shell {
+          padding: 24px;
+        }
+      }
+
+      .app-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .app-title-block {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .app-title {
+        font-size: 1.3rem;
+        letter-spacing: 0.02em;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .pill-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        color: var(--muted);
+        background: radial-gradient(circle at top left, rgba(148, 163, 184, 0.25), transparent 60%);
+      }
+
+      .app-subtitle {
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(15, 118, 110, 0.2);
+        border: 1px solid rgba(45, 212, 191, 0.5);
+        font-size: 0.72rem;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #22c55e;
+        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+      }
+
+      .status-chip.error {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(248, 113, 113, 0.7);
+      }
+
+      .status-dot.error {
+        background: #f97373;
+        box-shadow: 0 0 0 4px rgba(248, 113, 113, 0.25);
+      }
+
+      .layout-main {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+      }
+
+      @media (min-width: 768px) {
+        .layout-main {
+          grid-template-columns: 1.1fr 1.2fr;
+        }
+      }
+
+      .card {
+        border-radius: 18px;
+        padding: 14px 14px 12px;
+        background:
+          radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 55%),
+          radial-gradient(circle at bottom right, rgba(37, 99, 235, 0.2), transparent 55%),
+          var(--card-bg);
+        border: 1px solid rgba(51, 65, 85, 0.85);
+      }
+
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .card-title {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 4px;
+      }
+
+      .summary-item {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 8px 9px;
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(30, 64, 175, 0.7);
+      }
+
+      .summary-label {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+
+      .summary-value {
+        font-size: 1rem;
+      }
+
+      .summary-highlight {
+        color: var(--success);
+      }
+
+      .summary-negative {
+        color: var(--danger);
+      }
+
+      .summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-top: 6px;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+
+      .pill-small {
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        font-size: 0.7rem;
+      }
+
+      .badge-type {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 0.68rem;
+      }
+
+      .badge-type[data-type="ETF"] {
+        background: rgba(56, 189, 248, 0.16);
+        color: #7dd3fc;
+        border: 1px solid rgba(56, 189, 248, 0.5);
+      }
+
+      .badge-type[data-type="CRYPTO"] {
+        background: rgba(94, 234, 212, 0.14);
+        color: #6ee7b7;
+        border: 1px solid rgba(45, 212, 191, 0.6);
+      }
+
+      .badge-type[data-type="FIXED"] {
+        background: rgba(251, 191, 36, 0.14);
+        color: #fde68a;
+        border: 1px solid rgba(234, 179, 8, 0.6);
+      }
+
+      .asset-table-wrapper {
+        max-height: 260px;
+        overflow: auto;
+        border-radius: 14px;
+        border: 1px solid rgba(30, 41, 59, 0.9);
+        background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.93));
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+      }
+
+      thead {
+        position: sticky;
+        top: 0;
+        background: rgba(15, 23, 42, 0.98);
+        z-index: 1;
+      }
+
+      th,
+      td {
+        padding: 7px 8px;
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      th:first-child,
+      td:first-child {
+        text-align: left;
+        position: sticky;
+        left: 0;
+        background: inherit;
+      }
+
+      th {
+        font-weight: 500;
+        color: var(--muted);
+        border-bottom: 1px solid rgba(30, 41, 59, 0.9);
+      }
+
+      tbody tr:nth-child(odd) {
+        background: rgba(15, 23, 42, 0.9);
+      }
+
+      tbody tr:nth-child(even) {
+        background: rgba(15, 23, 42, 0.92);
+      }
+
+      tbody tr:hover {
+        background: rgba(30, 64, 175, 0.4);
+      }
+
+      .asset-name {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .asset-name-main {
+        font-size: 0.8rem;
+      }
+
+      .asset-name-meta {
+        font-size: 0.68rem;
+        color: var(--muted);
+      }
+
+      .text-right {
+        text-align: right;
+      }
+
+      .gain-positive {
+        color: var(--success);
+      }
+
+      .gain-negative {
+        color: var(--danger);
+      }
+
+      .section-json {
+        margin-top: 10px;
+        padding: 10px 12px 11px;
+        border-radius: 14px;
+        background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.98));
+        border: 1px dashed rgba(148, 163, 184, 0.7);
+        font-size: 0.74rem;
+      }
+
+      .section-json-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .section-json-title {
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+
+      .json-badge {
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        font-size: 0.68rem;
+        color: var(--muted);
+      }
+
+      #json-output {
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 10px;
+        background: #020617;
+        color: #e5e7eb;
+        max-height: 180px;
+        overflow: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 0.74rem;
+        line-height: 1.3;
+      }
+
+      .footer-hint {
+        margin-top: 8px;
+        font-size: 0.7rem;
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .footer-hint code {
+        font-size: 0.68rem;
+        background: rgba(15, 23, 42, 0.9);
+        padding: 2px 5px;
+        border-radius: 6px;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+      }
+
+      .error-banner {
+        margin-top: 8px;
+        padding: 7px 9px;
+        border-radius: 10px;
+        background: rgba(127, 29, 29, 0.4);
+        border: 1px solid rgba(248, 113, 113, 0.8);
+        font-size: 0.72rem;
+        color: #fecaca;
+        display: none;
+      }
+
+      .error-banner ul {
+        margin: 4px 0 0;
+        padding-left: 16px;
+      }
+
+      .error-banner li {
+        margin: 1px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="app-title-block">
+          <div class="app-title">
+            <span>Portfolio Tracker</span>
+            <span class="pill-label">Static · Client-Side · JSON</span>
+          </div>
+          <div class="app-subtitle">
+            iOS Shortcut friendly snapshot of your portfolio, powered by Yahoo
+            Finance &amp; CoinGecko.
+          </div>
+        </div>
+        <div class="status-chip" id="status-chip">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Live prices</span>
+        </div>
+      </header>
+
+      <main class="layout-main">
+        <section class="card" aria-label="Portfolio summary">
+          <div class="card-header">
+            <div class="card-title">Synthèse</div>
+            <div id="updated-at" class="pill-small">Chargement…</div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="summary-item">
+              <div class="summary-label">Investi</div>
+              <div class="summary-value" id="summary-invested">–</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">Valeur actuelle</div>
+              <div class="summary-value" id="summary-value">–</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">P&amp;L</div>
+              <div class="summary-value" id="summary-gain">–</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-label">P&amp;L %</div>
+              <div class="summary-value" id="summary-gain-pct">–</div>
+            </div>
+          </div>
+
+          <div class="summary-row">
+            <span>Répartition</span>
+            <span id="summary-breakdown">ETF / Crypto / Fixe</span>
+          </div>
+        </section>
+
+        <section class="card" aria-label="Détail des positions">
+          <div class="card-header">
+            <div class="card-title">Détail des actifs</div>
+          </div>
+          <div class="asset-table-wrapper">
+            <table aria-describedby="updated-at">
+              <thead>
+                <tr>
+                  <th>Actif</th>
+                  <th>Qté</th>
+                  <th>Prix achat</th>
+                  <th>Prix marché</th>
+                  <th>Investi</th>
+                  <th>Valeur</th>
+                  <th>P&amp;L</th>
+                  <th>% Portefeuille</th>
+                </tr>
+              </thead>
+              <tbody id="asset-rows"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <section class="section-json" aria-label="JSON pour Raccourci iOS">
+        <div class="section-json-header">
+          <div class="section-json-title">JSON · iOS Shortcut</div>
+          <div class="json-badge">GET &rarr; Dictionary</div>
+        </div>
+        <pre
+          id="json-output"
+          data-shortcut-json="true"
+          aria-label="JSON serialisé du portefeuille"
+        >En attente de données…</pre>
+        <div class="footer-hint">
+          <span>
+            iOS Raccourci → <code>Obtenir le contenu de l'URL</code> →
+            <code>Obtenir le dictionnaire de l'entrée</code>.
+          </span>
+          <span>
+            Le JSON est fourni dans <code>&lt;pre id="json-output"&gt;</code>.
+          </span>
+        </div>
+        <div class="error-banner" id="error-banner">
+          Certaines données n'ont pas pu être mises à jour :
+          <ul id="error-list"></ul>
+        </div>
+      </section>
+    </div>
+
+    <script src="./config.js"></script>
+    <script>
+      // Inline script kept under 300 lines and small functions for clarity.
+      // Summary: fetches prices, computes metrics, renders table and JSON model.
+
+      function formatCurrency(value, currency) {
+        if (value == null || Number.isNaN(value)) return "–";
+        try {
+          return new Intl.NumberFormat("fr-FR", {
+            style: "currency",
+            currency: currency || "EUR",
+            maximumFractionDigits: 2
+          }).format(value);
+        } catch (e) {
+          return `${value.toFixed(2)} ${currency || "EUR"}`;
+        }
+      }
+
+      function formatPercent(value) {
+        if (value == null || Number.isNaN(value)) return "–";
+        return `${value.toFixed(2)} %`;
+      }
+
+      function round2(n) {
+        return Math.round((n + Number.EPSILON) * 100) / 100;
+      }
+
+      function getTimestampString() {
+        const now = new Date();
+        const pad = (x) => String(x).padStart(2, "0");
+        const y = now.getFullYear();
+        const m = pad(now.getMonth() + 1);
+        const d = pad(now.getDate());
+        const hh = pad(now.getHours());
+        const mm = pad(now.getMinutes());
+        return `${y}-${m}-${d} ${hh}:${mm}`;
+      }
+
+      async function fetchYahooPrice(ticker, proxyBase) {
+        const targetUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+          ticker
+        )}`;
+        const url = `${proxyBase}${encodeURIComponent(targetUrl)}`;
+        const res = await fetch(url, { cache: "no-cache" });
+        if (!res.ok) {
+          throw new Error(`Yahoo ${ticker} HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const meta = data?.chart?.result?.[0]?.meta;
+        const price = meta?.regularMarketPrice;
+        if (typeof price !== "number") {
+          throw new Error(`Yahoo ${ticker} prix manquant`);
+        }
+        return price;
+      }
+
+      async function fetchCoinGeckoPrice(id, baseUrl, vsCurrency) {
+        const url = `${baseUrl}/simple/price?ids=${encodeURIComponent(
+          id
+        )}&vs_currencies=${encodeURIComponent(vsCurrency)}`;
+        const res = await fetch(url, { cache: "no-cache" });
+        if (!res.ok) {
+          throw new Error(`CoinGecko ${id} HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const value = data?.[id]?.[vsCurrency];
+        if (typeof value !== "number") {
+          throw new Error(`CoinGecko ${id} prix manquant`);
+        }
+        return value;
+      }
+
+      function computeMetrics(config, enrichedAssets) {
+        let totalInvested = 0;
+        let totalValue = 0;
+        let byTypeValue = {};
+
+        const assetsOut = enrichedAssets.map((asset) => {
+          const invested = round2(asset.buyPrice * asset.quantity);
+          const value = round2(asset.currentPrice * asset.quantity);
+          const gain = round2(value - invested);
+          const gainPct = invested > 0 ? (gain / invested) * 100 : null;
+          totalInvested += invested;
+          totalValue += value;
+          if (!byTypeValue[asset.type]) byTypeValue[asset.type] = 0;
+          byTypeValue[asset.type] += value;
+          return {
+            id: asset.id,
+            name: asset.name,
+            type: asset.type,
+            invested,
+            value,
+            gain,
+            gainPct,
+            quantity: asset.quantity,
+            buyPrice: asset.buyPrice,
+            currentPrice: asset.currentPrice
+          };
+        });
+
+        totalInvested = round2(totalInvested);
+        totalValue = round2(totalValue);
+        const totalGain = round2(totalValue - totalInvested);
+        const totalGainPct =
+          totalInvested > 0 ? (totalGain / totalInvested) * 100 : null;
+
+        const assetsWithPct = assetsOut.map((a) => ({
+          ...a,
+          pct: totalValue > 0 ? (a.value / totalValue) * 100 : 0
+        }));
+
+        const byType = {};
+        for (const [type, value] of Object.entries(byTypeValue)) {
+          byType[type] = {
+            value: round2(value),
+            pct: totalValue > 0 ? (value / totalValue) * 100 : 0
+          };
+        }
+
+        const resultJson = {
+          updated: getTimestampString(),
+          summary: {
+            invested: totalInvested,
+            value: totalValue,
+            gain: totalGain,
+            gainPct: totalGainPct != null ? round2(totalGainPct) : null
+          },
+          assets: assetsWithPct.map((a) => ({
+            name: a.name,
+            type: a.type,
+            invested: a.invested,
+            value: a.value,
+            gain: a.gain,
+            gainPct: a.gainPct != null ? round2(a.gainPct) : null,
+            pct: a.pct
+          })),
+          byType
+        };
+
+        return { totals: { totalInvested, totalValue, totalGain, totalGainPct }, resultJson };
+      }
+
+      function renderSummary(totals, byType, currency) {
+        const investedEl = document.getElementById("summary-invested");
+        const valueEl = document.getElementById("summary-value");
+        const gainEl = document.getElementById("summary-gain");
+        const gainPctEl = document.getElementById("summary-gain-pct");
+        const breakdownEl = document.getElementById("summary-breakdown");
+
+        investedEl.textContent = formatCurrency(totals.totalInvested, currency);
+        valueEl.textContent = formatCurrency(totals.totalValue, currency);
+
+        const gainClass = totals.totalGain >= 0 ? "summary-highlight" : "summary-negative";
+        gainEl.textContent = formatCurrency(totals.totalGain, currency);
+        gainEl.classList.add(gainClass);
+        gainPctEl.textContent = formatPercent(totals.totalGainPct || 0);
+        gainPctEl.classList.add(gainClass);
+
+        const entries = Object.entries(byType)
+          .sort((a, b) => b[1].value - a[1].value)
+          .map(([type, data]) => `${type}: ${formatPercent(data.pct)}`);
+        breakdownEl.textContent = entries.join(" · ") || "—";
+      }
+
+      function renderTable(assets, currency) {
+        const tbody = document.getElementById("asset-rows");
+        tbody.innerHTML = "";
+        assets.forEach((a) => {
+          const tr = document.createElement("tr");
+
+          const nameTd = document.createElement("td");
+          nameTd.className = "text-left";
+          const nameDiv = document.createElement("div");
+          nameDiv.className = "asset-name";
+          const mainSpan = document.createElement("span");
+          mainSpan.className = "asset-name-main";
+          mainSpan.textContent = a.name;
+          const metaSpan = document.createElement("span");
+          metaSpan.className = "asset-name-meta";
+          metaSpan.textContent = a.type;
+          const typeBadge = document.createElement("span");
+          typeBadge.className = "badge-type";
+          typeBadge.dataset.type = a.type;
+          typeBadge.textContent = a.type;
+          metaSpan.textContent = "";
+          nameDiv.appendChild(mainSpan);
+          nameDiv.appendChild(typeBadge);
+          nameTd.appendChild(nameDiv);
+
+          const qtyTd = document.createElement("td");
+          qtyTd.textContent = a.quantity.toFixed(4).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+
+          const buyTd = document.createElement("td");
+          buyTd.textContent = formatCurrency(a.buyPrice, currency);
+
+          const priceTd = document.createElement("td");
+          priceTd.textContent = formatCurrency(a.currentPrice, currency);
+
+          const investedTd = document.createElement("td");
+          investedTd.textContent = formatCurrency(a.invested, currency);
+
+          const valueTd = document.createElement("td");
+          valueTd.textContent = formatCurrency(a.value, currency);
+
+          const gainTd = document.createElement("td");
+          gainTd.textContent = `${a.gain >= 0 ? "+" : ""}${formatCurrency(
+            a.gain,
+            currency
+          )} (${formatPercent(a.gainPct || 0)})`;
+          gainTd.className = a.gain >= 0 ? "gain-positive" : "gain-negative";
+
+          const pctTd = document.createElement("td");
+          pctTd.textContent = formatPercent(a.pct || 0);
+
+          tr.appendChild(nameTd);
+          tr.appendChild(qtyTd);
+          tr.appendChild(buyTd);
+          tr.appendChild(priceTd);
+          tr.appendChild(investedTd);
+          tr.appendChild(valueTd);
+          tr.appendChild(gainTd);
+          tr.appendChild(pctTd);
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      function renderJson(resultJson) {
+        const pre = document.getElementById("json-output");
+        pre.textContent = JSON.stringify(resultJson, null, 2);
+      }
+
+      function setStatus(text, isError) {
+        const chip = document.getElementById("status-chip");
+        const dot = document.getElementById("status-dot");
+        const textEl = document.getElementById("status-text");
+        textEl.textContent = text;
+        if (isError) {
+          chip.classList.add("error");
+          dot.classList.add("error");
+        } else {
+          chip.classList.remove("error");
+          dot.classList.remove("error");
+        }
+      }
+
+      function showErrors(errors) {
+        const banner = document.getElementById("error-banner");
+        const listEl = document.getElementById("error-list");
+        if (!errors || errors.length === 0) {
+          banner.style.display = "none";
+          listEl.innerHTML = "";
+          return;
+        }
+        listEl.innerHTML = "";
+        errors.forEach((e) => {
+          const li = document.createElement("li");
+          li.textContent = e;
+          listEl.appendChild(li);
+        });
+        banner.style.display = "block";
+      }
+
+      async function loadPortfolio() {
+        if (!window.PORTFOLIO_CONFIG) {
+          setStatus("Configuration introuvable", true);
+          return;
+        }
+        const config = window.PORTFOLIO_CONFIG;
+        const errors = [];
+        setStatus("Mise à jour…", false);
+
+        const enrichPromises = config.assets.map(async (asset) => {
+          let currentPrice = asset.fixedCurrentValue ?? null;
+          if (asset.priceSource === "yahoo") {
+            try {
+              currentPrice = await fetchYahooPrice(
+                asset.ticker,
+                config.yahooProxyBaseUrl
+              );
+            } catch (err) {
+              errors.push(`${asset.name} (${asset.ticker}) : ${err.message}`);
+              currentPrice = asset.buyPrice;
+            }
+          } else if (asset.priceSource === "coingecko") {
+            try {
+              currentPrice = await fetchCoinGeckoPrice(
+                asset.coingeckoId,
+                config.coingeckoBaseUrl,
+                config.coingeckoVsCurrency
+              );
+            } catch (err) {
+              errors.push(`${asset.name} : ${err.message}`);
+              currentPrice = asset.buyPrice;
+            }
+          }
+          return { ...asset, currentPrice };
+        });
+
+        let enrichedAssets;
+        try {
+          enrichedAssets = await Promise.all(enrichPromises);
+        } catch (err) {
+          errors.push(`Erreur globale: ${err.message}`);
+          enrichedAssets = config.assets.map((a) => ({
+            ...a,
+            currentPrice: a.fixedCurrentValue ?? a.buyPrice
+          }));
+        }
+
+        const { totals, resultJson } = computeMetrics(config, enrichedAssets);
+        renderSummary(totals, resultJson.byType, config.currency);
+        renderTable(
+          enrichedAssets.map((asset, i) => ({ ...resultJson.assets[i], ...asset })),
+          config.currency
+        );
+        renderJson(resultJson);
+
+        const updatedAtEl = document.getElementById("updated-at");
+        updatedAtEl.textContent = resultJson.updated;
+        showErrors(errors);
+        setStatus(errors.length ? "Partiel" : "Live prices", errors.length > 0);
+      }
+
+      window.addEventListener("load", () => {
+        loadPortfolio().catch((err) => {
+          console.error(err);
+          setStatus("Erreur de chargement", true);
+        });
+      });
+    </script>
+  </body>
+</html>
